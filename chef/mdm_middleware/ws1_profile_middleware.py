@@ -131,14 +131,15 @@ def create_profile(event):
                     }
                 ],
             },
-            "CustomSettingsList": list(
-                [
-                    {"CustomSettings": p}
-                    for p in map(payload_to_xml, event["profile"]["PayloadContent"])
-                ]
-            ),
+            "CustomSettingsList": [
+                {"CustomSettings": p}
+                for p in map(
+                    payload_to_xml, event["profile"]["PayloadContent"]
+                )
+            ],
         },
     )
+
     r.raise_for_status()
 
     return r.text

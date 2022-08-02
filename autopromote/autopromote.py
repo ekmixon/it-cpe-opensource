@@ -76,8 +76,9 @@ def load_deny_and_allow_lists(config):
             yield config_item
 
     config["denylist"], config["allowlist"] = tuple(
-        l for l in load(config["denylist"], config["allowlist"])
+        load(config["denylist"], config["allowlist"])
     )
+
     return config
 
 
@@ -123,8 +124,7 @@ def get_pkgs(root):
 
     pkgs = []
     for directory, subdirs, pkginfos in os.walk(root):
-        for pkginfo in pkginfos:
-            pkgs.append(os.path.join(directory, pkginfo))
+        pkgs.extend(os.path.join(directory, pkginfo) for pkginfo in pkginfos)
     return pkgs
 
 
@@ -212,9 +212,9 @@ def get_ideal_catalogs(catalogs):
     in CONFIG['catalog_order'] and and the list of catalogs leading up to that catalog
     """
 
-    custom_catalogs = [c for c in catalogs if not c in CONFIG["catalog_order"]]
+    custom_catalogs = [c for c in catalogs if c not in CONFIG["catalog_order"]]
     config_catalogs = [c for c in CONFIG["catalog_order"] if c in catalogs]
-    latest_catalog = None if not config_catalogs else config_catalogs[-1]
+    latest_catalog = config_catalogs[-1] if config_catalogs else None
 
     if latest_catalog:
         new_catalogs = []
@@ -223,7 +223,7 @@ def get_ideal_catalogs(catalogs):
             if c == latest_catalog:
                 break
 
-        new_catalogs = new_catalogs + custom_catalogs
+        new_catalogs += custom_catalogs
     else:
         new_catalogs = catalogs
 
@@ -327,9 +327,7 @@ def promote_pkg(current_plist, path):
         if latest_catalog == CONFIG["catalog_order"][0]:
             last_promoted = plist["_metadata"].get("creation_date")
 
-            previous_pkg = get_previous_pkg(plist)
-
-            if previous_pkg:
+            if previous_pkg := get_previous_pkg(plist):
                 for key in CONFIG["fields_to_copy"]:
                     # Only copy the previous field if the new plist does not contain a conflicting value
                     if previous_pkg.get(key) and not plist.get(key):
@@ -363,7 +361,7 @@ def promote_pkg(current_plist, path):
     result["from"] = latest_catalog
     result["to"] = next_catalog
     plist["_metadata"]["last_promoted"] = arrow.now().datetime
-    if not name in CONFIG["force_install_denylist"]:
+    if name not in CONFIG["force_install_denylist"]:
         plist["force_install_after_date"] = (
             arrow.now().shift(days=+get_force_install_days(next_catalog)).datetime
         )
@@ -416,11 +414,12 @@ def notify_slack(promotions, error):
         "title": "Autopromotion run completed",
         "text": ""
         if promotions
-        else "No packages promoted"
-        if not error
-        else f"Error: {error}",
+        else f"Error: {error}"
+        if error
+        else "No packages promoted",
         "footer": "Alerts #withGusto",
     }
+
     logger.debug(promotions)
     logger.debug(attachments)
     Slacker(token).chat.post_message(
@@ -449,7 +448,7 @@ def main():
         # We write that list to a global variable. Several functions iterate
         # over it, and this seems cleaner than passing the value around or going full OO.
         global PKGINFOS_PATHS
-        PKGINFOS_PATHS = [p for p in pkgs]
+        PKGINFOS_PATHS = list(pkgs)
 
         # Let's do the promoting!
         promotions = promote_pkgs(PKGINFOS_PATHS)
@@ -462,7 +461,7 @@ def main():
     except Exception as e:
         logger.error(e)
         error = e
-        raise e
+        raise error
     finally:
         if CONFIG["notify_slack"]:
             notify_slack(promotions, error)

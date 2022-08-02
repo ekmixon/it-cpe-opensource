@@ -53,8 +53,7 @@ class Recipe(object):
     @property
     def branch(self):
         return (
-            "{}_{}".format(self.name, self.updated_version)
-            .strip()
+            f"{self.name}_{self.updated_version}".strip()
             .replace(" ", "")
             .replace(")", "-")
             .replace("(", "-")
@@ -76,7 +75,7 @@ class Recipe(object):
         cmd = " ".join(cmd)
 
         if DEBUG:
-            print("Running " + str(cmd))
+            print(f"Running {cmd}")
 
         p = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
@@ -96,7 +95,7 @@ class Recipe(object):
         cmd = " ".join(cmd)
 
         if DEBUG:
-            print("Running " + str(cmd))
+            print(f"Running {cmd}")
 
         # Fail loudly if this exits 0
         try:
@@ -144,7 +143,7 @@ class Recipe(object):
                 ]
                 cmd = " ".join(cmd)
                 if DEBUG:
-                    print("Running " + str(cmd))
+                    print(f"Running {cmd}")
 
                 subprocess.check_call(cmd, shell=True)
 
@@ -229,7 +228,7 @@ def parse_recipes(recipes):
         for recipe in recipes:
             ext = os.path.splitext(recipe)[1]
             if ext != ".recipe":
-                recipe_list.append(recipe + ".recipe")
+                recipe_list.append(f"{recipe}.recipe")
             else:
                 recipe_list.append(recipe)
     else:
@@ -250,7 +249,7 @@ def parse_recipes(recipes):
 
 ## Icon handling
 def import_icons():
-    branch_name = "icon_import_{}".format(datetime.now().strftime("%Y-%m-%d"))
+    branch_name = f'icon_import_{datetime.now().strftime("%Y-%m-%d")}'
     checkout(branch_name)
     result = subprocess.check_call(
         "/usr/local/munki/iconimporter munki_repo", shell=True
@@ -277,16 +276,14 @@ def slack_alert(recipe, opts):
         if not recipe.results["failed"]:
             task_description = "Unknown error"
         else:
-            task_description = ("Error: {} \n" "Traceback: {} \n").format(
-                recipe.results["failed"][0]["message"],
-                recipe.results["failed"][0]["traceback"],
-            )
+            task_description = f'Error: {recipe.results["failed"][0]["message"]} \nTraceback: {recipe.results["failed"][0]["traceback"]} \n'
+
 
             if "No releases found for repo" in task_description:
                 # Just no updates
                 return
     elif recipe.updated:
-        task_title = "Imported %s %s" % (recipe.name, str(recipe.updated_version))
+        task_title = f"Imported {recipe.name} {str(recipe.updated_version)}"
         task_description = (
             "*Catalogs:* %s \n" % recipe.results["imported"][0]["catalogs"]
             + "*Package Path:* `%s` \n" % recipe.results["imported"][0]["pkg_repo_path"]
@@ -305,7 +302,9 @@ def slack_alert(recipe, opts):
                         "username": "Autopkg",
                         "as_user": True,
                         "title": task_title,
-                        "color": "warning" if not recipe.verified else "good" if not recipe.error else "danger",
+                        "color": ("danger" if recipe.error else "good")
+                        if recipe.verified
+                        else "warning",
                         "text": task_description,
                         "mrkdwn_in": ["text"],
                     }
@@ -314,6 +313,7 @@ def slack_alert(recipe, opts):
         ),
         headers={"Content-Type": "application/json"},
     )
+
     if response.status_code != 200:
         raise ValueError(
             "Request to slack returned an error %s, the response is:\n%s"
@@ -358,7 +358,7 @@ def main():
 
     failures = []
 
-    recipes = RECIPE_TO_RUN.split(", ") if RECIPE_TO_RUN else opts.list if opts.list else None
+    recipes = RECIPE_TO_RUN.split(", ") if RECIPE_TO_RUN else opts.list or None
     if recipes is None:
         print("Recipe --list or RECIPE_TO_RUN not provided!")
         sys.exit(1)
@@ -366,17 +366,15 @@ def main():
     for recipe in recipes:
         handle_recipe(recipe, opts)
         slack_alert(recipe, opts)
-        if not opts.disable_verification:
-            if not recipe.verified:
-                failures.append(recipe)
-    if not opts.disable_verification:
-        if failures:
-            title = " ".join([f"{recipe.name}" for recipe in failures])
-            lines = [f"{recipe.results['message']}\n" for recipe in failures]
-            with open("pull_request_title", "a+") as title_file:
-                title_file.write(f"Update trust for {title}")
-            with open("pull_request_body", "a+") as body_file:
-                body_file.writelines(lines)
+        if not opts.disable_verification and not recipe.verified:
+            failures.append(recipe)
+    if not opts.disable_verification and failures:
+        title = " ".join([f"{recipe.name}" for recipe in failures])
+        lines = [f"{recipe.results['message']}\n" for recipe in failures]
+        with open("pull_request_title", "a+") as title_file:
+            title_file.write(f"Update trust for {title}")
+        with open("pull_request_body", "a+") as body_file:
+            body_file.writelines(lines)
 
     if opts.icons:
         import_icons()

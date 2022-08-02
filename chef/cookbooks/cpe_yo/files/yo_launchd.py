@@ -72,7 +72,7 @@ def main():
     """Application main"""
     sys.stdout.write("Running yo\n")
     global USER_RECEIPTS_PATH
-    USER_RECEIPTS_PATH = "/Users/{}/Library/Yo/.receipts".format(get_console_user()[0])
+    USER_RECEIPTS_PATH = f"/Users/{get_console_user()[0]}/Library/Yo/.receipts"
     process_notifications()
 
 
@@ -84,7 +84,7 @@ def unix_timestamp(datetime_object):
 
 def run_yo_with_args(arg_str):
     """Run the yo binary with supplied args using subprocess"""
-    args = "{} {}".format(YO_BINARY, arg_str)
+    args = f"{YO_BINARY} {arg_str}"
     call(args, shell=True)
 
 
@@ -119,7 +119,7 @@ def process_notifications():
     receipts = get_receipts()
     schedule = get_schedule()
     for arg_str, time_condition in schedule.get("notifications", {}).iteritems():
-        sys.stdout.write("Considering {}\n".format(arg_str))
+        sys.stdout.write(f"Considering {arg_str}\n")
         utc_time = time_condition.replace(tzinfo=pytz.utc)
         receipt_key = arg_str + str(unix_timestamp(utc_time))
         if (
@@ -127,7 +127,7 @@ def process_notifications():
             and check_conditional(arg_str, schedule.get("conditions", {}))
             and check_time(utc_time)
         ):
-            sys.stdout.write("Running {} (Known as {})\n".format(arg_str, receipt_key))
+            sys.stdout.write(f"Running {arg_str} (Known as {receipt_key})\n")
             run_yo_with_args(arg_str)
             add_receipt(receipt_key)
 
@@ -137,7 +137,7 @@ def get_schedule():
     # We _can_ use CopyAppValue here because the preferences have been
     # set for AnyUser.
     tmp = "/tmp/schedule.plist"
-    cmd = "/usr/bin/plutil -convert xml1 -o {} {}".format(tmp, SCHEDULE_PATH)
+    cmd = f"/usr/bin/plutil -convert xml1 -o {tmp} {SCHEDULE_PATH}"
     call(cmd, shell=True)
     r = plist.readPlist(tmp)
     os.remove(tmp)
@@ -152,7 +152,7 @@ def get_receipts():
         return {}
 
     tmp = "/tmp/receipts.plist"
-    cmd = "/usr/bin/plutil -convert xml1 -o {} {}".format(tmp, USER_RECEIPTS_PATH)
+    cmd = f"/usr/bin/plutil -convert xml1 -o {tmp} {USER_RECEIPTS_PATH}"
     call(cmd, shell=True)
     r = plist.readPlist(tmp)
     os.remove(tmp)
@@ -171,7 +171,7 @@ def add_receipt(receipt_key, stamp=None):
 def is_console_user():
     """Test for whether current user is the current console user"""
     console_user = get_console_user()
-    return False if not console_user[0] else os.getuid() == console_user[1]
+    return os.getuid() == console_user[1] if console_user[0] else False
 
 
 def get_console_user():
